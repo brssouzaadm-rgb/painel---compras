@@ -1,0 +1,410 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Painel de Listas</title>
+
+<!--
+==================================================================================
+  PAINEL DE LISTAS  ·  versão SEM LOGIN (lê dados gerados pelo Power Automate)
+==================================================================================
+  • Coloque este arquivo na MESMA pasta do "dados.js" (gerado pelo fluxo) e abra
+    (pode ser por duplo-clique). Carrega sozinho, sem login, sem servidor.
+  • Quando o fluxo atualizar o dados.js, aperte F5 (ou o botão Atualizar).
+  • Para testar sem dados: clique em "Ver com dados de exemplo".
+  • Também dá pra carregar um arquivo manualmente no botão "Carregar dados".
+
+  Esta versão decodifica automaticamente os nomes internos de coluna do SharePoint
+  (ex.: "TipoRequisi_x00e7__x00e3_o" vira "TipoRequisição") e lê os campos de
+  escolha/lookup que vêm como objeto.
+==================================================================================
+-->
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="dados.js" onerror=""></script>
+<script src="dados.txt" onerror=""></script>
+
+<style>
+  :root{
+    --bg:#FAFAF6; --surface:#FFFFFF; --border:#E9E6DD;
+    --ink:#1B1A17; --muted:#6E6A61; --faint:#989389;
+    --accent:#0E7C66; --accent-ink:#0A5A4A; --accent-soft:#E3F0EC;
+    --danger:#B23A2E; --danger-soft:#F7E7E4;
+    --r:14px; --r-sm:9px;
+    --shadow:0 1px 2px rgba(20,18,15,.04), 0 2px 6px rgba(20,18,15,.05);
+    --font-display:'Space Grotesk',system-ui,sans-serif;
+    --font-body:'Inter',system-ui,-apple-system,sans-serif;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0}
+  body{background:var(--bg); color:var(--ink); font-family:var(--font-body); font-size:15px; line-height:1.45; -webkit-font-smoothing:antialiased;}
+  .wrap{max-width:1180px; margin:0 auto; padding:22px 22px 60px}
+
+  header.bar{display:flex; align-items:flex-end; justify-content:space-between; gap:18px; flex-wrap:wrap; padding-bottom:16px; border-bottom:1.5px solid var(--ink);}
+  .title h1{font-family:var(--font-display); font-weight:700; font-size:25px; letter-spacing:-.02em; margin:0;}
+  .title .sub{color:var(--muted); font-size:13px; margin-top:3px;}
+  .title .sub b{color:var(--accent-ink); font-weight:600;}
+  .meta{display:flex; align-items:center; gap:14px; flex-wrap:wrap;}
+  .stamp{display:flex; align-items:center; gap:7px; color:var(--muted); font-size:12.5px; font-variant-numeric:tabular-nums;}
+  .live{width:8px; height:8px; border-radius:50%; background:var(--accent);}
+  button{font-family:var(--font-body); cursor:pointer;}
+  .btn{border:1px solid var(--border); background:var(--surface); color:var(--ink); font-weight:500; font-size:13.5px; padding:8px 14px; border-radius:var(--r-sm); transition:background .15s,border-color .15s; display:inline-block;}
+  .btn:hover{background:#F4F2EC; border-color:#D9D5CA;}
+  .btn:focus-visible{outline:2px solid var(--accent); outline-offset:2px;}
+  .btn.primary{background:var(--accent); border-color:var(--accent); color:#fff;}
+  .btn.primary:hover{background:var(--accent-ink); border-color:var(--accent-ink);}
+  .btn.small{padding:6px 11px; font-size:12.5px;}
+  input[type=file]{display:none;}
+
+  .sourcebar{display:flex; align-items:center; gap:11px; margin-top:18px; flex-wrap:wrap;}
+  .sourcebar label{font-family:var(--font-display); text-transform:uppercase; letter-spacing:.07em; font-size:11px; font-weight:600; color:var(--faint);}
+  select.source{font-family:var(--font-body); font-size:14px; font-weight:500; color:var(--ink); background:var(--surface); border:1px solid var(--border); border-radius:var(--r-sm); padding:9px 13px; min-width:280px; max-width:90vw;}
+  select.source:focus, select.filter:focus, .search input:focus{outline:2px solid var(--accent); outline-offset:1px; border-color:var(--accent);}
+
+  .kpis{display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:14px; margin-top:16px;}
+  .kpi{background:var(--surface); border:1px solid var(--border); border-radius:var(--r); padding:16px 17px; box-shadow:var(--shadow);}
+  .kpi .lbl{font-family:var(--font-display); text-transform:uppercase; letter-spacing:.08em; font-size:10.5px; font-weight:600; color:var(--faint); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+  .kpi .val{font-family:var(--font-display); font-weight:700; font-size:30px; letter-spacing:-.02em; margin-top:8px; font-variant-numeric:tabular-nums; line-height:1;}
+  .kpi .note{color:var(--muted); font-size:12px; margin-top:6px;}
+  .kpi.lead{border-left:3px solid var(--accent);}
+
+  .charts{display:grid; grid-template-columns:1fr 1fr; gap:14px; margin-top:14px;}
+  .charts.single{grid-template-columns:1fr;}
+  .panel{background:var(--surface); border:1px solid var(--border); border-radius:var(--r); padding:16px 17px; box-shadow:var(--shadow);}
+  .panel h2{font-family:var(--font-display); font-weight:600; font-size:14px; letter-spacing:-.01em; margin:0 0 12px;}
+  .panel h2 span{color:var(--faint); font-weight:500;}
+  .chartbox{position:relative; height:248px;}
+
+  .tablecard{margin-top:14px;}
+  .tbar{display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; margin-bottom:12px;}
+  .tbar .controls{display:flex; gap:10px; flex-wrap:wrap; align-items:center;}
+  .search input, select.filter{font-family:var(--font-body); font-size:13.5px; color:var(--ink); background:var(--surface); border:1px solid var(--border); border-radius:var(--r-sm); padding:8px 12px;}
+  .search input{width:230px; max-width:60vw;}
+  .count{color:var(--muted); font-size:12.5px; font-variant-numeric:tabular-nums;}
+  .scroll{overflow:auto; max-height:520px; border:1px solid var(--border); border-radius:var(--r-sm);}
+  table{border-collapse:collapse; width:100%; font-size:13.5px;}
+  thead th{position:sticky; top:0; background:#F6F4EE; text-align:left; font-family:var(--font-display); font-weight:600; font-size:11.5px; text-transform:uppercase; letter-spacing:.05em; color:var(--muted); padding:10px 13px; border-bottom:1px solid var(--border); white-space:nowrap; cursor:pointer; user-select:none;}
+  thead th:hover{color:var(--ink);}
+  thead th .arrow{color:var(--accent); margin-left:5px;}
+  tbody td{padding:9px 13px; border-bottom:1px solid #F2EFE8; vertical-align:top; max-width:320px; overflow:hidden; text-overflow:ellipsis; font-variant-numeric:tabular-nums;}
+  tbody tr:last-child td{border-bottom:none;}
+  tbody tr:hover td{background:#FAFAF4;}
+  td.num{text-align:right;}
+  .pill{display:inline-block; background:var(--accent-soft); color:var(--accent-ink); border-radius:20px; padding:2px 9px; font-size:12px; font-weight:500;}
+
+  .center{min-height:70vh; display:flex; align-items:center; justify-content:center; padding:20px;}
+  .card{background:var(--surface); border:1px solid var(--border); border-radius:var(--r); box-shadow:var(--shadow); padding:32px; max-width:470px; text-align:center;}
+  .card .mark{font-family:var(--font-display); font-weight:700; font-size:13px; letter-spacing:.14em; color:var(--accent); text-transform:uppercase;}
+  .card h2{font-family:var(--font-display); font-weight:700; font-size:21px; margin:14px 0 10px; letter-spacing:-.01em;}
+  .card p{color:var(--muted); font-size:14px; margin:0 0 22px;}
+  .card .actions{display:flex; gap:10px; justify-content:center; flex-wrap:wrap;}
+  .notice{background:var(--danger-soft); color:var(--danger); border:1px solid #E9CFC9; border-radius:var(--r-sm); padding:11px 14px; font-size:13px; text-align:left; margin-top:16px;}
+  .hidden{display:none !important;}
+
+  @media (max-width:720px){ .charts{grid-template-columns:1fr;} .title h1{font-size:22px;} }
+</style>
+</head>
+<body>
+
+<div id="needdata" class="center">
+  <div class="card">
+    <div class="mark">Painel de Listas</div>
+    <h2>Nenhum dado carregado ainda</h2>
+    <p>Coloque o arquivo <b>dados.js</b> (gerado pelo seu fluxo) na mesma pasta deste arquivo e atualize a página. Ou carregue um arquivo manualmente.</p>
+    <div class="actions">
+      <label class="btn primary" for="fileInput">Carregar dados (.js / .json)</label>
+      <button class="btn" id="sampleBtn">Ver com dados de exemplo</button>
+    </div>
+    <input type="file" id="fileInput" accept=".js,.json,application/json,text/javascript">
+    <div id="needErr" class="notice hidden"></div>
+  </div>
+</div>
+
+<div id="app" class="wrap hidden">
+  <header class="bar">
+    <div class="title">
+      <h1 id="dashTitle">Painel de Listas</h1>
+      <div class="sub" id="srcSub">—</div>
+    </div>
+    <div class="meta">
+      <div class="stamp"><span class="live"></span><span id="stamp">—</span></div>
+      <label class="btn small" for="fileInput2">Carregar dados</label>
+      <input type="file" id="fileInput2" accept=".js,.json,application/json,text/javascript">
+      <button class="btn small" id="reloadBtn">Atualizar</button>
+    </div>
+  </header>
+
+  <div class="sourcebar">
+    <label for="source">Lista</label>
+    <select class="source" id="source"></select>
+  </div>
+
+  <section class="kpis" id="kpis"></section>
+
+  <section class="charts" id="charts">
+    <div class="panel" id="catPanel">
+      <h2 id="catTitle">Distribuição</h2>
+      <div class="chartbox"><canvas id="catChart"></canvas></div>
+    </div>
+    <div class="panel" id="trendPanel">
+      <h2 id="trendTitle">Tendência</h2>
+      <div class="chartbox"><canvas id="trendChart"></canvas></div>
+    </div>
+  </section>
+
+  <section class="panel tablecard">
+    <div class="tbar">
+      <h2 style="margin:0">Registros</h2>
+      <div class="controls">
+        <select class="filter" id="catFilter"></select>
+        <div class="search"><input id="search" type="search" placeholder="Buscar em tudo…" autocomplete="off"></div>
+        <span class="count" id="rowCount"></span>
+      </div>
+    </div>
+    <div class="scroll"><table id="table"><thead></thead><tbody></tbody></table></div>
+  </section>
+</div>
+
+<script>
+const TITLE = "Painel de Compras — Listas";
+const PALETTE = ['#0E7C66','#D98A2B','#3B6EA5','#9A4C95','#5B8C5A','#C2603F','#4F4A8C','#8A8170'];
+const $ = id => document.getElementById(id);
+const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+const state = { lists:[], generatedAt:null, current:0, rows:[], schema:null, sortKey:null, sortDir:1, charts:{} };
+
+/* ===== nomes de coluna do SharePoint: decodifica _xXXXX_ e tira prefixo OData_ ===== */
+function decodeName(raw){
+  let s = String(raw);
+  if (s.startsWith("OData_")) s = s.slice(6);
+  s = s.replace(/_x([0-9A-Fa-f]{4})_/g, (m,h)=>String.fromCharCode(parseInt(h,16)));
+  s = s.replace(/_x[0-9A-Fa-f]{0,4}$/i, "");   // remove sobra de codificação truncada no fim do nome
+  s = s.replace(/_+/g, " ").trim();
+  return s || raw;
+}
+/* extrai o valor "simples" de campos de escolha/lookup que vêm como objeto */
+function scalar(v){
+  if (v === null || v === undefined) return v;
+  if (typeof v === "object") return (v.Value ?? v.Title ?? v.LookupValue ?? v.DisplayName ?? v.Email ?? "");
+  return v;
+}
+const labelOf = k => (state.schema && state.schema.fields.find(f=>f.key===k)?.label) || decodeName(k);
+
+/* ============================ CARGA DE DADOS ============================ */
+function ingest(data){
+  let lists;
+  if (Array.isArray(data)) lists = [{label:"Dados", items:data}];
+  else if (data && Array.isArray(data.lists)) lists = data.lists;
+  else if (data && Array.isArray(data.items)) lists = [{label:"Dados", items:data.items}];
+  else if (data && Array.isArray(data.value)) lists = [{label:"Dados", items:data.value}];
+  else { needError("Formato de dados não reconhecido."); return; }
+  state.lists = lists.map(l=>({ label:l.label||"Lista", items:(l.items||[]).map(it=>it && it.fields ? it.fields : it) }));
+  state.generatedAt = data.generatedAt || null;
+  state.current = 0; state.sortKey = null;
+  startApp();
+}
+function parseLoose(txt){
+  txt = txt.toString().trim();
+  if (!txt.startsWith("[") && !txt.startsWith("{")){
+    const i = txt.indexOf("{"), j = txt.lastIndexOf("}");
+    if (i>=0 && j>i) txt = txt.slice(i, j+1); else throw new Error("não encontrei JSON no arquivo");
+  } else if (txt.startsWith("{")){ txt = txt.slice(0, txt.lastIndexOf("}")+1); }
+  else { txt = txt.slice(0, txt.lastIndexOf("]")+1); }
+  return JSON.parse(txt);
+}
+function handleFile(input){
+  const f = input.files && input.files[0]; if (!f) return;
+  const fr = new FileReader();
+  fr.onload = () => { try { ingest(parseLoose(fr.result)); } catch(e){ needError("Não consegui ler o arquivo: "+e.message); } };
+  fr.onerror = () => needError("Falha ao abrir o arquivo.");
+  fr.readAsText(f);
+}
+function sampleData(){
+  const hoje=new Date(); const d=n=>new Date(hoje.getTime()-n*864e5).toISOString();
+  return { generatedAt: hoje.toISOString(), lists:[
+    { label:"Requisições — exemplo", items:[
+      {Title:"REQ-001", Status:"Aprovada", Setor:"Almoxarifado", Valor:1250.5, Data:d(2)},
+      {Title:"REQ-002", Status:"Em análise", Setor:"TI",        Valor:8400,   Data:d(5)},
+      {Title:"REQ-003", Status:"Aprovada", Setor:"Laboratório", Valor:3120.9, Data:d(9)},
+      {Title:"REQ-004", Status:"Pendente",  Setor:"TI",        Valor:560,    Data:d(14)},
+      {Title:"REQ-005", Status:"Aprovada", Setor:"Almoxarifado",Valor:2230,   Data:d(20)},
+      {Title:"REQ-006", Status:"Rejeitada", Setor:"Compras",    Valor:990.75, Data:d(28)},
+    ]},
+    { label:"Pedidos — exemplo", items:[
+      {Title:"PED-101", Situacao:"Entregue",   Fornecedor:"Alfa", Total:4500, Emissao:d(3)},
+      {Title:"PED-102", Situacao:"Em trânsito",Fornecedor:"Beta", Total:1200, Emissao:d(7)},
+      {Title:"PED-103", Situacao:"Entregue",   Fornecedor:"Gama", Total:7800, Emissao:d(12)},
+      {Title:"PED-104", Situacao:"Cancelado",  Fornecedor:"Alfa", Total:300,  Emissao:d(19)},
+    ]},
+  ]};
+}
+function needError(msg){ show("needdata"); const el=$("needErr"); el.textContent=msg; el.classList.remove("hidden"); }
+function show(which){ ["needdata","app"].forEach(id=>$(id).classList.toggle("hidden", id!==which)); }
+function esc(s){ return String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c])); }
+
+/* ============================ ANÁLISE DE COLUNAS ============================ */
+const SYS = new Set(["@odata.etag","ItemInternalId","ID","Id","{Identifier}","{HasAttachments}","{VersionNumber}","{IsFolder}","{Thumbnail}","{Link}","{Name}","{FilenameWithExtension}","{Path}","{FullPath}","{ContentType}","Author","Editor","Attachments","Edit","DocIcon","LinkTitle","LinkTitleNoMenu","ContentType"]);
+function isHidden(k){
+  if (SYS.has(k)) return true;
+  if (k.startsWith("{") && k.endsWith("}")) return true;   // {IsFolder}, {Thumbnail}, {Path}...
+  if (k.includes("#")) return true;               // field_1#Id, Author#Claims, Category#Id@odata.type...
+  if (k.includes("@odata")) return true;          // Category@odata.type
+  if (k.endsWith("LookupId")) return true;
+  if (k.startsWith("OData_") && /(UIVersionString|ComplianceFlags|ComplianceTag|ColorTag|ModerationStatus|ModerationComments)/.test(k)) return true;
+  return false;
+}
+const isoDate = v => typeof v==="string" && /^\d{4}-\d{2}-\d{2}T/.test(v);
+const looksDateKey = s => /(date|data|created|modified|criad|alterad|prazo|vencim|emiss|recebim|pagamento|dfd|in[ií]cio)/i.test(s);
+const looksCatKey  = s => /(status|state|situa|tipo|type|categor|priorit|prioridade|classif|stage|etapa|owner|respons|fornec|gest|fiscal|execu|area|área|setor|depart|unidade)/i.test(s);
+
+function analyze(rows){
+  const keys=[];
+  rows.forEach(r=>Object.keys(r||{}).forEach(k=>{ if(!isHidden(k)&&!keys.includes(k)) keys.push(k); }));
+  const fields = keys.map(k=>{
+    const label = decodeName(k);
+    const vals = rows.map(r=>scalar(r[k])).filter(v=>v!==null&&v!==undefined&&v!=="");
+    const sample = vals.slice(0,80);
+    let type="text";
+    if (sample.length){
+      if (sample.every(v=>typeof v==="number"||(typeof v==="string"&&v.trim()!==""&&!isNaN(Number(v))&&!isoDate(v)))) type="number";
+      else if (sample.every(v=>isoDate(v))||(looksDateKey(label)&&sample.every(v=>!isNaN(Date.parse(v))))) type="date";
+      else if (sample.every(v=>typeof v==="boolean")) type="boolean";
+    }
+    return { key:k, label, type, distinct:new Set(vals.map(v=>String(v))).size };
+  });
+  fields.sort((a,b)=>{ const rank=f=>/^(title|titulo)$/i.test(f.key)?0:(/^(created|modified)$/i.test(f.key))?2:1; return rank(a)-rank(b); });
+  const numFields=fields.filter(f=>f.type==="number");
+  const dateFields=fields.filter(f=>f.type==="date");
+  const catCand=fields.filter(f=>(f.type==="text"||f.type==="boolean")&&f.distinct>=2&&f.distinct<=20);
+  const categoryField = catCand.sort((a,b)=>(looksCatKey(b.label)-looksCatKey(a.label))||(a.distinct-b.distinct))[0]?.key || null;
+  const dateField = dateFields.find(f=>/^created$/i.test(f.key))?.key || dateFields[0]?.key || null;
+  return { fields, categoryField, dateField, numericFields:numFields.map(f=>f.key) };
+}
+
+/* ============================ FORMATAÇÃO ============================ */
+const fmtNum = n => Number(n).toLocaleString("pt-BR",{maximumFractionDigits:2});
+const fmtDate = v => { const d=new Date(v); return isNaN(d)?String(v):d.toLocaleDateString("pt-BR"); };
+function cellVal(v,type){
+  v = scalar(v);
+  if (v===null||v===undefined||v==="") return '<span style="color:var(--faint)">—</span>';
+  if (type==="date") return fmtDate(v);
+  if (type==="number") return fmtNum(v);
+  if (type==="boolean") return v?"Sim":"Não";
+  if (typeof v==="object") return esc(JSON.stringify(v));
+  return esc(String(v));
+}
+
+/* ============================ RENDER ============================ */
+function animateCount(el,target){
+  if (reduceMotion){ el.textContent=fmtNum(target); return; }
+  const dur=650, t0=performance.now();
+  (function step(t){ const p=Math.min((t-t0)/dur,1), e=1-Math.pow(1-p,3); el.textContent=fmtNum(Math.round(target*e)); if(p<1) requestAnimationFrame(step); })(t0);
+}
+function renderKpis(){
+  const s=state.schema, rows=state.rows, cards=[{lbl:"Total de registros", val:rows.length, note:"nesta lista", lead:true}];
+  s.numericFields.slice(0,3).forEach(k=>{
+    const nums=rows.map(r=>Number(scalar(r[k]))).filter(n=>!isNaN(n)); const sum=nums.reduce((a,b)=>a+b,0); const avg=nums.length?sum/nums.length:0;
+    cards.push({lbl:labelOf(k), val:sum, note:"média "+fmtNum(Math.round(avg*100)/100)});
+  });
+  if (s.dateField){ const wk=Date.now()-7*864e5; const recent=rows.filter(r=>{const d=Date.parse(scalar(r[s.dateField])); return !isNaN(d)&&d>=wk;}).length; cards.push({lbl:"Últimos 7 dias", val:recent, note:"novos por "+labelOf(s.dateField)}); }
+  if (cards.length<2 && s.categoryField){ const d=new Set(rows.map(r=>scalar(r[s.categoryField])).filter(Boolean)).size; cards.push({lbl:labelOf(s.categoryField), val:d, note:"categorias distintas"}); }
+  $("kpis").innerHTML = cards.map(c=>`<div class="kpi ${c.lead?'lead':''}"><div class="lbl" title="${esc(c.lbl)}">${esc(c.lbl)}</div><div class="val" data-v="${c.val}">0</div><div class="note">${esc(c.note)}</div></div>`).join("");
+  document.querySelectorAll("#kpis .val").forEach(el=>animateCount(el, Number(el.dataset.v)));
+}
+function groupCounts(rows,key,cap){
+  const m=new Map(); rows.forEach(r=>{ const sv=scalar(r[key]); const v=(sv===null||sv===undefined||sv==="")?"(vazio)":String(sv); m.set(v,(m.get(v)||0)+1); });
+  let arr=[...m.entries()].sort((a,b)=>b[1]-a[1]);
+  if (cap&&arr.length>cap){ const rest=arr.slice(cap-1).reduce((a,b)=>a+b[1],0); arr=arr.slice(0,cap-1); arr.push(["Outros",rest]); }
+  return { labels:arr.map(a=>a[0]), data:arr.map(a=>a[1]) };
+}
+function timeBuckets(rows,key){
+  const ds=rows.map(r=>Date.parse(scalar(r[key]))).filter(d=>!isNaN(d)).sort((a,b)=>a-b);
+  if (!ds.length) return null;
+  const span=(ds[ds.length-1]-ds[0])/864e5, mode=span>120?"month":span>21?"week":"day";
+  const keyer=d=>{ const x=new Date(d); if(mode==="month") return x.getFullYear()+"-"+String(x.getMonth()+1).padStart(2,"0"); if(mode==="week"){ const o=new Date(x); o.setDate(o.getDate()-((o.getDay()+6)%7)); return o.toISOString().slice(0,10);} return x.toISOString().slice(0,10); };
+  const m=new Map(); ds.forEach(d=>{const k=keyer(d); m.set(k,(m.get(k)||0)+1);});
+  const labels=[...m.keys()].sort(), fmt=l=> mode==="month"?l:new Date(l).toLocaleDateString("pt-BR",{day:"2-digit",month:"2-digit"});
+  return { labels:labels.map(fmt), data:labels.map(l=>m.get(l)) };
+}
+function destroyChart(n){ if(state.charts[n]){ state.charts[n].destroy(); state.charts[n]=null; } }
+function renderCharts(){
+  const s=state.schema, rows=state.rows, el=$("charts"); let panels=2;
+  if (s.categoryField){
+    $("catPanel").classList.remove("hidden");
+    $("catTitle").innerHTML=`Distribuição <span>· por ${esc(labelOf(s.categoryField))}</span>`;
+    const g=groupCounts(rows,s.categoryField,8); destroyChart("cat");
+    state.charts.cat=new Chart($("catChart"),{type:"doughnut",data:{labels:g.labels,datasets:[{data:g.data,backgroundColor:PALETTE,borderColor:"#fff",borderWidth:2}]},options:{responsive:true,maintainAspectRatio:false,cutout:"58%",animation:{duration:reduceMotion?0:500},plugins:{legend:{position:"right",labels:{font:{family:"Inter",size:12},color:"#1B1A17",boxWidth:12,padding:10}}}}});
+  } else { $("catPanel").classList.add("hidden"); panels--; }
+  const tb=s.dateField?timeBuckets(rows,s.dateField):null;
+  if (tb){
+    $("trendPanel").classList.remove("hidden");
+    $("trendTitle").innerHTML=`Tendência <span>· por ${esc(labelOf(s.dateField))}</span>`; destroyChart("trend");
+    state.charts.trend=new Chart($("trendChart"),{type:"line",data:{labels:tb.labels,datasets:[{data:tb.data,label:"Registros",fill:true,borderColor:PALETTE[0],backgroundColor:"rgba(14,124,102,.10)",tension:.3,pointRadius:2,pointBackgroundColor:PALETTE[0],borderWidth:2}]},options:{responsive:true,maintainAspectRatio:false,animation:{duration:reduceMotion?0:500},plugins:{legend:{display:false}},scales:{x:{grid:{display:false},ticks:{font:{family:"Inter",size:11},color:"#6E6A61",maxRotation:0,autoSkip:true,maxTicksLimit:8}},y:{beginAtZero:true,grid:{color:"#F0EDE5"},ticks:{precision:0,font:{family:"Inter",size:11},color:"#6E6A61"}}}}});
+  } else { $("trendPanel").classList.add("hidden"); panels--; }
+  el.classList.toggle("single",panels===1); el.classList.toggle("hidden",panels===0);
+}
+function buildFilter(){
+  const sel=$("catFilter"), s=state.schema;
+  if (!s.categoryField){ sel.classList.add("hidden"); return; }
+  sel.classList.remove("hidden");
+  const vals=[...new Set(state.rows.map(r=>scalar(r[s.categoryField])).filter(v=>v!==null&&v!==undefined&&v!==""))].map(String).sort();
+  sel.innerHTML=`<option value="">Todos · ${esc(labelOf(s.categoryField))}</option>`+vals.map(v=>`<option>${esc(v)}</option>`).join("");
+}
+function visibleRows(){
+  const q=$("search").value.trim().toLowerCase(), cf=$("catFilter").value, ck=state.schema.categoryField;
+  let rows=state.rows.filter(r=>{ if(cf&&String(scalar(r[ck])??"")!==cf) return false; if(!q) return true; return state.schema.fields.some(f=>String(scalar(r[f.key])??"").toLowerCase().includes(q)); });
+  if (state.sortKey){
+    const f=state.schema.fields.find(x=>x.key===state.sortKey);
+    rows=[...rows].sort((a,b)=>{ let x=scalar(a[state.sortKey]),y=scalar(b[state.sortKey]);
+      if(f&&f.type==="number"){ return ((Number(x)||0)-(Number(y)||0))*state.sortDir; }
+      if(f&&f.type==="date"){ return ((Date.parse(x)||0)-(Date.parse(y)||0))*state.sortDir; }
+      return String(x??"").localeCompare(String(y??""),"pt-BR")*state.sortDir; });
+  }
+  return rows;
+}
+function renderTable(){
+  const s=state.schema, thead=$("table").tHead, tbody=$("table").tBodies[0];
+  thead.innerHTML="<tr>"+s.fields.map(f=>{ const ar=state.sortKey===f.key?`<span class="arrow">${state.sortDir>0?"▲":"▼"}</span>`:""; return `<th data-k="${esc(f.key)}" title="${esc(f.label)}">${esc(f.label)}${ar}</th>`; }).join("")+"</tr>";
+  thead.querySelectorAll("th").forEach(th=>th.onclick=()=>{ const k=th.dataset.k; if(state.sortKey===k) state.sortDir*=-1; else {state.sortKey=k; state.sortDir=1;} renderTable(); });
+  const rows=visibleRows(), ck=s.categoryField;
+  tbody.innerHTML=rows.map(r=>"<tr>"+s.fields.map(f=>{ const cls=f.type==="number"?' class="num"':""; let h=cellVal(r[f.key],f.type); if(f.key===ck&&scalar(r[f.key])) h=`<span class="pill">${esc(String(scalar(r[f.key])))}</span>`; return `<td${cls}>${h}</td>`; }).join("")+"</tr>").join("");
+  $("rowCount").textContent=`${rows.length.toLocaleString("pt-BR")} de ${state.rows.length.toLocaleString("pt-BR")} registros`;
+}
+
+/* ============================ FLUXO DO APP ============================ */
+function loadCurrent(){
+  const src=state.lists[state.current];
+  $("srcSub").innerHTML=`Fonte: <b>${esc(src.label)}</b>`;
+  state.rows = src.items || [];
+  state.schema = analyze(state.rows);
+  renderKpis(); renderCharts(); buildFilter(); renderTable();
+}
+function startApp(){
+  $("dashTitle").textContent=TITLE; document.title=TITLE;
+  const sel=$("source"); sel.innerHTML=state.lists.map((s,i)=>`<option value="${i}">${esc(s.label)}</option>`).join("");
+  sel.value=String(state.current);
+  sel.onchange=()=>{ state.current=Number(sel.value); state.sortKey=null; loadCurrent(); };
+  $("stamp").textContent = state.generatedAt ? ("Dados de "+new Date(state.generatedAt).toLocaleString("pt-BR")) : "Dados carregados";
+  show("app");
+  loadCurrent();
+}
+
+$("fileInput").addEventListener("change", e=>handleFile(e.target));
+$("fileInput2").addEventListener("change", e=>handleFile(e.target));
+$("sampleBtn").onclick = ()=>ingest(sampleData());
+$("reloadBtn").onclick = ()=>location.reload();
+$("search").addEventListener("input", renderTable);
+$("catFilter").addEventListener("change", renderTable);
+
+if (window.DASHBOARD_DATA) { ingest(window.DASHBOARD_DATA); }
+else if (location.protocol !== "file:") {
+  const tryFetch = name => fetch(name,{cache:"no-store"}).then(r=>r.ok?r.text():Promise.reject());
+  tryFetch("dados.txt").catch(()=>tryFetch("dados.js"))
+    .then(t=>ingest(parseLoose(t))).catch(()=>show("needdata"));
+} else { show("needdata"); }
+</script>
+</body>
+</html>
